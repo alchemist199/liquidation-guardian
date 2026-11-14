@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Liquidation Guardian — Reactive Omni Buildathon</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<script src="config.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; margin-top: 2rem; }
+  .card { border: 1px solid #ddd; border-radius: 12px; padding: 1rem; margin: 0.75rem 0; }
+  .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+  button { padding: 0.5rem 0.9rem; border-radius: 8px; border: 1px solid #333; background: #fff; cursor: pointer; }
+  button.primary { background: #111; color: #fff; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  input { padding: 0.5rem; border-radius: 8px; border: 1px solid #ccc; width: 10rem; }
+  .ok { color: #0a7a2f; } .bad { color: #b00020; } .mono { font-family: monospace; font-size: 0.85rem; word-break: break-all; }
+  #log { background: #111; color: #d4ffd4; padding: 1rem; border-radius: 12px; min-height: 8rem; white-space: pre-wrap; font-family: monospace; font-size: 0.85rem; }
+  .addr { font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<h1>🛡️ Liquidation Guardian</h1>
+<p>Reactive contract di Lasna memantau harga ETH/USD. Kalau health factor posisi
+lending di Base Sepolia jatuh di bawah <b>1.2</b>, Guardian otomatis top-up collateral
+sebelum posisi ke-liquidasi. Track: <b>Every Second Counts</b>.</p>
+
+<div class="card">
+  <div class="row">
+    <button id="connectBtn" class="primary">Connect Wallet</button>
+    <span id="walletInfo">Belum terhubung — pakai Base Sepolia (84532).</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Status</h2>
+  <div>Harga ETH/USD (mock feed): <b id="price">—</b></div>
+  <div>Posisi #<span id="pid">0</span> — collateral: <b id="coll">—</b> mWETH · utang: <b id="debt">—</b> mUSDC</div>
+  <div>Health factor: <b id="hf">—</b> <span id="hfFlag"></span></div>
+  <div>Reserve Guardian: <b id="reserve">—</b> mWETH · saldo callback: <b id="cbBal">—</b> SepETH</div>
+  <div class="addr">Vault: <span class="mono" id="vaultAddr"></span><br/>
+  Guardian: <span class="mono" id="guardianAddr"></span><br/>
+  Reactive (Lasna): <span class="mono" id="reactiveAddr"></span></div>
+  <div class="row" style="margin-top:.5rem"><button id="refreshBtn">Refresh status</button></div>
+</div>
+
+<div class="card">
+  <h2>1. Buka posisi demo</h2>
+  <div class="row">
+    <button id="mintBtn">Mint 2 mWETH</button>
+    <button id="openBtn">Buka posisi: 1 mWETH / 1500 mUSDC</button>
+    <button id="reserveBtn">Deposit 1 mWETH ke Guardian</button>
+  </div>
+  <p class="addr">Posisi demo: HF 1.6 di harga $3000. Setelah harga jatuh ke $2000, HF ≈ 1.067 → rescue top-up 0.40625 mWETH → HF 1.5.</p>
+</div>
+
+<div class="card">
+  <h2>2. Picu crash harga (owner feed)</h2>
+  <div class="row">
+    <input id="priceInput" type="number" value="2000" step="100" />
+    <button id="setPriceBtn" class="primary">Set harga → picu rescue</button>
+  </div>
+  <p class="addr">Set harga di mock feed = event PriceUpdated di Base Sepolia → reactive tx di Lasna → callback ke Guardian di Base Sepolia.</p>
+</div>
+
+<div class="card">
+  <h2>Riwayat loop (live)</h2>
+  <div id="log">Menunggu event…</div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let provider, signer, account;
+let weth, usdc, feed, vault, guardian;
+let pid = 0;
+
+function log(msg) {
+  const el = $("log");
+  if (el.textContent === "Menunggu event…") el.textContent = "";
+  el.textContent += `[${new Date().toLocaleTimeString("id-ID")}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+async function loadAbi(name) {
+  const r = await fetch(`abi/${name}.json`);
+  return r.json();
+}
+async function refresh() {
+  if (!feed) return;
+  const [, price] = await feed.latestRoundData();
+  $("price").textContent = "$" + (Number(price) / 1e8).toFixed(2);
+  const pos = await vault.positions(pid);
+  $("coll").textContent = ethers.formatEther(pos[1]);
+  $("debt").textContent = (Number(pos[2]) / 1e6).toFixed(2);
+  const hf = await vault.healthFactor(pid);
+  const hfNum = Number(hf) / 1e18;
+  $("hf").textContent = hfNum.toFixed(4);
+  const flag = $("hfFlag");
+  if (hfNum < 1.0) { flag.textContent = "— BAHAYA: bisa dilikuidasi"; flag.className = "bad"; }
+  else if (hfNum < 1.2) { flag.textContent = "— di bawah trigger, rescue berjalan"; flag.className = "bad"; }
+  else { flag.textContent = "— aman"; flag.className = "ok"; }
+  $("reserve").textContent = ethers.formatEther(await weth.balanceOf(CONFIG.guardian));
+  $("cbBal").textContent = ethers.formatEther(await provider.getBalance(CONFIG.guardian));
+}
+
+async function connect() {
+  if (!window.ethereum) { alert("Butuh wallet EVM (MetaMask/Rabby) di browser."); return; }
+  provider = new ethers.BrowserProvider(window.ethereum);
+  await provider.send("eth_requestAccounts", []);
+  signer = await provider.getSigner();
+  account = await signer.getAddress();
+  const net = await provider.getNetwork();
+  if (Number(net.chainId) !== CONFIG.baseSepoliaChainId) {
+    $("walletInfo").textContent = `Terhubung ${account.slice(0, 8)}… tapi chain ${net.chainId} — ganti ke Base Sepolia (84532).`;
+    return;
+  }
+  $("walletInfo").textContent = `Terhubung: ${account}`;
+  weth = new ethers.Contract(CONFIG.mockWETH, await loadAbi("MockToken"), signer);
+  usdc = new ethers.Contract(CONFIG.mockUSDC, await loadAbi("MockToken"), signer);
+  feed = new ethers.Contract(CONFIG.priceFeed, await loadAbi("MockPriceFeed"), signer);
+  vault = new ethers.Contract(CONFIG.vault, await loadAbi("LendingVault"), signer);
+  guardian = new ethers.Contract(CONFIG.guardian, await loadAbi("Guardian"), signer);
+  // Event listeners
+  feed.on("PriceUpdated", (p, ts) => log(`PriceUpdated: $${Number(p) / 1e8} (ts ${ts})`));
+  vault.on("PositionOpened", (id, owner) => { pid = Number(id); $("pid").textContent = pid; log(`PositionOpened #${id}`); refresh(); });
+  guardian.on("Rescued", (id, amt, hf) => log(`✅ Rescued #${id}: +${ethers.formatEther(amt)} mWETH, HF → ${(Number(hf) / 1e18).toFixed(4)}`));
+  guardian.on("RescueSkipped", (id, reason) => log(`RescueSkipped #${id}: ${reason}`));
+  await refresh();
+}
+
+$("connectBtn").onclick = connect;
+$("refreshBtn").onclick = refresh;
+$("mintBtn").onclick = async () => { const tx = await weth.mint(account, ethers.parseEther("2")); log("mint tx: " + tx.hash); await tx.wait(); log("2 mWETH minted"); await refresh(); };
+$("openBtn").onclick = async () => {
+  let tx = await weth.approve(CONFIG.vault, ethers.parseEther("1")); await tx.wait();
+  tx = await vault.openPosition(ethers.parseEther("1"), 1500_000000n);
+  log("openPosition tx: " + tx.hash); await tx.wait(); log("Posisi dibuka"); await refresh();
+};
+$("reserveBtn").onclick = async () => {
+  let tx = await weth.approve(CONFIG.guardian, ethers.parseEther("1")); await tx.wait();
+  tx = await guardian.depositReserve(ethers.parseEther("1"));
+  log("depositReserve tx: " + tx.hash); await tx.wait(); log("Reserve 1 mWETH terisi"); await refresh();
+};
+$("setPriceBtn").onclick = async () => {
+  const p = BigInt(Math.round(Number($("priceInput").value) * 1e8));
+  const t0 = Date.now();
+  const tx = await feed.setPrice(p);
+  log(`setPrice($${Number(p) / 1e8}) tx: ${tx.hash}`);
+  await tx.wait();
+  log(`Harga berubah di Base Sepolia (+${Date.now() - t0} ms) — tunggu reactive tx di Lasna + callback…`);
+  setTimeout(refresh, 8000);
+};
+$("vaultAddr").textContent = CONFIG.vault;
+$("guardianAddr").textContent = CONFIG.guardian;
+$("reactiveAddr").textContent = CONFIG.reactive;
+</script>
+</body>
+</html>

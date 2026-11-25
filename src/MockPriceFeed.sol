@@ -19,7 +19,7 @@ interface AggregatorV3Interface {
 }
 
 /// @notice Chainlink-compatible mock price feed (8 decimals, like ETH/USD).
-/// The owner moves the price; every move emits PriceUpdated — the event the
+/// The owner moves the price; every move emits PriceUpdated, the event the
 /// reactive contract subscribes to. In production this would be the real
 /// Chainlink feed (same interface, no code change in the vault).
 contract MockPriceFeed is AggregatorV3Interface, Ownable {

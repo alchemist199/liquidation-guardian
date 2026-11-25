@@ -30,7 +30,7 @@ Contracts (`src/`, Foundry, solc 0.8.29, `@reactive-network` via `reactive-lib-o
 | `MockToken.sol` | Base Sepolia | mWETH (18 dec) & mUSDC (6 dec), mintable |
 | `MockPriceFeed.sol` | Base Sepolia | Chainlink AggregatorV3-compatible, emits `PriceUpdated(int256,uint256)` |
 | `LendingVault.sol` | Base Sepolia | Positions, health factor (1e18 scale), LT 80%, liquidation +5% bonus |
-| `Guardian.sol` | Base Sepolia | `AbstractCallback`, holds the reserve, `rescue()` / `coverDebt()` — callback proxy only, reactive contract only |
+| `Guardian.sol` | Base Sepolia | `AbstractCallback`, holds the reserve, `rescue()` / `coverDebt()`, callback proxy only, reactive contract only |
 | `LiquidationReactive.sol` | Lasna | `AbstractReactive`, subscribes to `PriceUpdated`, mirrors positions, triggers at HF 1.2, targets HF 1.5, 60 s cooldown per position |
 
 Safety: `rescue()` re-checks the health factor on-chain before spending any reserve, no-ops (no revert) when the position is already healthy or the reserve is empty, caps the top-up at the available reserve, and falls back to `coverDebt()` when collateral is too low to top up.
@@ -42,7 +42,7 @@ Verified on testnet, 15 Nov 2026:
 1. Open a position: **1 mWETH @ $3000, 1500 mUSDC debt → HF 1.6**
 2. Price drops to **$2000 → HF 1.0667** (below the 1.2 trigger)
 3. The Lasna reactive contract requests a callback → Guardian tops up **0.40625 mWETH**
-4. Final position: **1.40625 mWETH, HF 1.5** — saved from liquidation
+4. Final position: **1.40625 mWETH, HF 1.5**, saved from liquidation
 
 Proof:
 
@@ -50,7 +50,7 @@ Proof:
 - Callback: tx `0x3a3878e38dd5aa2cbd61208135ed1f025ae065f922078c3fa7887ffa0c917dc0` (block 58867249), `Rescued` event: +0.40625 mWETH, HF 1.5
 - Latency: block timestamps 1794695316 → 1794695318, **~2 s** end-to-end
 
-Note: `react()` runs at the system level on Lasna, so there is no regular transaction hash for it. The proof is the `setPrice` tx, the changed on-chain state (`guarded(0)` collateral 1.0 → 1.40625 mWETH), and the callback tx. Lasna's `eth_getLogs` is broken — verify via `cast call`, not logs.
+Note: `react()` runs at the system level on Lasna, so there is no regular transaction hash for it. The proof is the `setPrice` tx, the changed on-chain state (`guarded(0)` collateral 1.0 → 1.40625 mWETH), and the callback tx. Lasna's `eth_getLogs` is broken, verify via `cast call`, not logs.
 
 Video demo (92 s): [video-demo.mp4](video-demo.mp4)
 
@@ -66,7 +66,7 @@ forge test   # 13/13 pass (test/LiquidationGuardian.t.sol)
 
 Key tests: `testFullLoop` (price drop → callback → top-up → HF 1.5), `testCooldownPreventsSpam`, `testRescueCapsAtReserve`, `testGuardianSkipsWhenHealthy`, `testGuardianAuth`.
 
-## Deploy (testnet only — no mainnet, no real funds)
+## Deploy (testnet only, no mainnet, no real funds)
 
 ```bash
 export $(grep -v '^#' .env | xargs)

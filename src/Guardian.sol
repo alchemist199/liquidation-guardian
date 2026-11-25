@@ -7,9 +7,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { LendingVault } from "./LendingVault.sol";
 
-/// @title Guardian — the callback contract (Base Sepolia).
+/// @title Guardian, the callback contract (Base Sepolia).
 /// @notice Holds a collateral reserve. When the reactive contract requests a
-/// rescue, tops the position up from the reserve — but only while the on-chain
+/// rescue, tops the position up from the reserve, but only while the on-chain
 /// health factor is still below the trigger (defense in depth against stale
 /// triggers). Never reverts on a bad rescue: it no-ops and emits RescueSkipped,
 /// because a failed callback still bills the recipient.

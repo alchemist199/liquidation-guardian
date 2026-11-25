@@ -6,7 +6,7 @@ import { IReactive } from "@reactive/src/interfaces/IReactive.sol";
 import { AbstractReactive } from "@reactive/src/base/AbstractReactive.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title LiquidationReactive — the reactive contract (Lasna testnet).
+/// @title LiquidationReactive, the reactive contract (Lasna testnet).
 /// @notice Subscribes to PriceUpdated events from the price feed on Base
 /// Sepolia. On every price move it recomputes the health factor of each
 /// guarded position from its mirrored state; when a position falls below the

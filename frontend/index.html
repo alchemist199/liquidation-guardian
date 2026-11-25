@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Liquidation Guardian — Reactive Omni Buildathon</title>
+<title>Liquidation Guardian, Reactive Omni Buildathon</title>
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
 <script src="config.js"></script>
 <style>
@@ -29,14 +29,14 @@ collateral before the position gets liquidated. Track: <b>Every Second Counts</b
 <div class="card">
   <div class="row">
     <button id="connectBtn" class="primary">Connect Wallet</button>
-    <span id="walletInfo">Not connected — use Base Sepolia (84532).</span>
+    <span id="walletInfo">Not connected, use Base Sepolia (84532).</span>
   </div>
 </div>
 
 <div class="card">
   <h2>Status</h2>
   <div>ETH/USD price (mock feed): <b id="price">—</b></div>
-  <div>Position #<span id="pid">0</span> — collateral: <b id="coll">—</b> mWETH · debt: <b id="debt">—</b> mUSDC</div>
+  <div>Position #<span id="pid">0</span>, collateral: <b id="coll">—</b> mWETH · debt: <b id="debt">—</b> mUSDC</div>
   <div>Health factor: <b id="hf">—</b> <span id="hfFlag"></span></div>
   <div>Guardian reserve: <b id="reserve">—</b> mWETH · callback balance: <b id="cbBal">—</b> SepETH</div>
   <div class="addr">Vault: <span class="mono" id="vaultAddr"></span><br/>
@@ -96,9 +96,9 @@ async function refresh() {
   const hfNum = Number(hf) / 1e18;
   $("hf").textContent = hfNum.toFixed(4);
   const flag = $("hfFlag");
-  if (hfNum < 1.0) { flag.textContent = "— DANGER: can be liquidated"; flag.className = "bad"; }
-  else if (hfNum < 1.2) { flag.textContent = "— below trigger, rescue in progress"; flag.className = "bad"; }
-  else { flag.textContent = "— safe"; flag.className = "ok"; }
+  if (hfNum < 1.0) { flag.textContent = "DANGER: can be liquidated"; flag.className = "bad"; }
+  else if (hfNum < 1.2) { flag.textContent = "below trigger, rescue in progress"; flag.className = "bad"; }
+  else { flag.textContent = "safe"; flag.className = "ok"; }
   $("reserve").textContent = ethers.formatEther(await weth.balanceOf(CONFIG.guardian));
   $("cbBal").textContent = ethers.formatEther(await provider.getBalance(CONFIG.guardian));
 }
@@ -111,7 +111,7 @@ async function connect() {
   account = await signer.getAddress();
   const net = await provider.getNetwork();
   if (Number(net.chainId) !== CONFIG.baseSepoliaChainId) {
-    $("walletInfo").textContent = `Connected ${account.slice(0, 8)}… but on chain ${net.chainId} — switch to Base Sepolia (84532).`;
+    $("walletInfo").textContent = `Connected ${account.slice(0, 8)}… but on chain ${net.chainId}, switch to Base Sepolia (84532).`;
     return;
   }
   $("walletInfo").textContent = `Connected: ${account}`;
@@ -147,7 +147,7 @@ $("setPriceBtn").onclick = async () => {
   const tx = await feed.setPrice(p);
   log(`setPrice($${Number(p) / 1e8}) tx: ${tx.hash}`);
   await tx.wait();
-  log(`Price changed on Base Sepolia (+${Date.now() - t0} ms) — waiting for the reactive tx on Lasna + callback…`);
+  log(`Price changed on Base Sepolia (+${Date.now() - t0} ms), waiting for the reactive tx on Lasna + callback…`);
   setTimeout(refresh, 8000);
 };
 $("vaultAddr").textContent = CONFIG.vault;

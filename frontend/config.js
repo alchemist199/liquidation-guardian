@@ -1,5 +1,5 @@
 // Liquidation Guardian demo config.
-// Deployed 15 Nov 2026 ~05:37 WIB — addresses verified on-chain via RPC.
+// Deployed 15 Nov 2026 ~05:37 WIB, addresses verified on-chain via RPC.
 const CONFIG = {
   baseSepoliaChainId: 84532,
   lasnaChainId: 5318007,
